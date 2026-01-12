@@ -10,24 +10,35 @@ def predict_landmark(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST an image file"}, status=400)
 
-    if "file" not in request.FILES:
+    files = request.FILES.getlist("file")
+
+    if not files:
         return JsonResponse({"error": "No image file provided"}, status=400)
 
+    results = []
+
     try:
-        image_file = request.FILES["file"]
-        result = predict_image(image_file.read())
-
-        predicted_landmark = result["label"]
-        confidence = result["confidence"]
-
+        # Get user location once (not per image)
         user_lat, user_lon = get_user_location()
-        distance_km = distance_to_landmark(predicted_landmark)
+
+        for image_file in files:
+            prediction = predict_image(image_file.read())
+
+            predicted_landmark = prediction["label"]
+            confidence = prediction["confidence"]
+
+            distance_km = distance_to_landmark(predicted_landmark)
+
+            results.append({
+                "filename": image_file.name,
+                "predicted_landmark": predicted_landmark,
+                "confidence": confidence,
+                "distance_km": round(distance_km, 2)
+            })
 
         return JsonResponse({
-            "predicted_landmark": predicted_landmark,
-            "confidence": confidence,
             "user_location": {"lat": user_lat, "lon": user_lon},
-            "distance_km": round(distance_km, 2)
+            "results": results
         })
 
     except Exception as e:
