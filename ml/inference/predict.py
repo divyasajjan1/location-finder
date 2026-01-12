@@ -1,21 +1,21 @@
+# ml/inference/predict.py
+
+import io
+from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
-from PIL import Image
 import os
 
-# Paths (DO NOT CHANGE STRUCTURE)
-MODEL_PATH = os.path.join("ml", "models", "landmark_resnet18.pth")
-DATA_DIR = os.path.join("data", "raw")
-IMG_SIZE = 224
+# ---------------- Paths ----------------
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "landmark_resnet18.pth")
 
-# Device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
-
-# Image preprocessing (same as training)
+# ---------------- Transforms ----------------
 transform = transforms.Compose([
-    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(
         mean=[0.485, 0.456, 0.406],
@@ -23,36 +23,33 @@ transform = transforms.Compose([
     )
 ])
 
-# Load model
+# ---------------- Load model once ----------------
 def load_model():
     checkpoint = torch.load(MODEL_PATH, map_location=device)
 
-    model = models.resnet18(pretrained=False)
-    model.fc = nn.Linear(model.fc.in_features, len(checkpoint["classes"]))
+    classes = checkpoint["classes"]
+    num_classes = len(classes)
 
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
     model.load_state_dict(checkpoint["model_state_dict"])
-    model.to(device)
     model.eval()
 
-    return model, checkpoint["classes"]
-
+    return model, classes
 
 model, classes = load_model()
 
-# Predict function
-def predict_image(image_path: str) -> str:
-    image = Image.open(image_path).convert("RGB")
-    image = transform(image).unsqueeze(0).to(device)
+# ---------------- Prediction function ----------------
+def predict_image(image_bytes: bytes):
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img_tensor = transform(image).unsqueeze(0)
 
     with torch.no_grad():
-        outputs = model(image)
-        _, predicted = torch.max(outputs, 1)
+        outputs = model(img_tensor)
+        probs = torch.softmax(outputs, dim=1)
+        confidence, predicted = torch.max(probs, 1)
 
-    return classes[predicted.item()]
-
-
-# CLI testing (optional)
-if __name__ == "__main__":
-    test_image = input("Enter image path: ")
-    prediction = predict_image(test_image)
-    print("Predicted Landmark:", prediction)
+    return {
+        "label": classes[predicted.item()],
+        "confidence": round(confidence.item(), 4)
+    }
