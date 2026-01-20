@@ -4,6 +4,9 @@ from ml.inference.predict import predict_image
 
 from api.utils.user_location import get_user_location
 from api.utils.distance_to_landmark import distance_to_landmark
+from api.utils.landmark_facts import get_landmark_facts
+from api.utils.gemini_summary import generate_summary
+
 
 @csrf_exempt
 def predict_landmark(request):
@@ -29,13 +32,19 @@ def predict_landmark(request):
 
             distance_km = distance_to_landmark(predicted_landmark)
 
+            facts = get_landmark_facts(predicted_landmark)
+            summary = None
+            if facts:
+                summary = generate_summary(predicted_landmark, facts)
+
             results.append({
                 "filename": image_file.name,
                 "predicted_landmark": predicted_landmark,
                 "confidence": confidence,
-                "distance_km": round(distance_km, 2)
+                "distance_km": round(distance_km, 2),
+                "summary": summary
             })
-
+        
         return JsonResponse({
             "user_location": {"lat": user_lat, "lon": user_lon},
             "results": results
