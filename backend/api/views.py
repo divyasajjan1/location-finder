@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from ml.inference.predict import predict_image
+from scripts.training.predict import predict_image
 
 from api.utils.user_location import get_user_location
 from api.utils.distance_to_landmark import distance_to_landmark

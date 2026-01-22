@@ -3,8 +3,8 @@ import requests
 from pathlib import Path
 
 # ---------------- Paths ----------------
-CLASS_NAMES_PATH = Path("../../ml/models/class_names.json")
-OUTPUT_PATH = Path("../../ml/models/landmark_locations.json")
+CLASS_NAMES_PATH = Path("../../models/class_names.json")
+OUTPUT_PATH = Path("../../models/landmark_locations.json")
 
 # ---------------- Headers (REQUIRED) ----------------
 HEADERS = {

@@ -6,7 +6,7 @@ from .user_location import get_user_location
 from .distance import haversine  # use relative import
 
 # Load landmark coordinates once
-LANDMARK_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "ml", "models", "landmark_locations.json")
+LANDMARK_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "landmark_locations.json")
 with open(LANDMARK_FILE) as f:
     landmark_coords = json.load(f)
 
