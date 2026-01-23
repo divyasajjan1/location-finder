@@ -1,18 +1,18 @@
-# scripts/training/predict.py
-
 import io
+import json
 from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 import os
 
-# ---------------- Paths ----------------
+# ---------------- Paths and Model Loading ----------------
+# Adjusted BASE_DIR for predict.py being in backend/api/
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "landmark_resnet18.pth")
+CLASS_NAMES_PATH = os.path.join(BASE_DIR, "models", "class_names.json")
 
-
-device = torch.device("cpu")
+device = torch.device("cpu") # Consider using "cuda" if a GPU is available
 
 model = None
 classes = None
@@ -27,26 +27,26 @@ transform = transforms.Compose([
     )
 ])
 
-# ---------------- Load model once ----------------
-def load_model():
-    checkpoint = torch.load(MODEL_PATH, map_location=device)
+# ---------------- Load model and class names once ----------------
+def load_model_and_classes():
+    global model, classes
+    if model is None or classes is None:
+        # Load class names
+        with open(CLASS_NAMES_PATH) as f:
+            classes = json.load(f)
 
-    classes = checkpoint["classes"]
-    num_classes = len(classes)
+        checkpoint = torch.load(MODEL_PATH, map_location=device)
+        num_classes = len(classes)
 
-    model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model.eval()
-
+        model = models.resnet18(weights=None)
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        model.eval()
     return model, classes
-
 
 # ---------------- Prediction function ----------------
 def predict_image(image_bytes: bytes):
-    global model, classes
-    if model is None:
-        model, classes = load_model()
+    model, classes = load_model_and_classes()
 
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img_tensor = transform(image).unsqueeze(0)
@@ -60,3 +60,4 @@ def predict_image(image_bytes: bytes):
         "label": classes[predicted.item()],
         "confidence": round(confidence.item(), 4)
     }
+
