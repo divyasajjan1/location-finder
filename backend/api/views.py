@@ -8,7 +8,9 @@ from api.utils.user_location import get_user_location
 from api.utils.distance_to_landmark import distance_to_landmark
 from api.utils.landmark_facts import get_landmark_facts
 from api.utils.gemini_summary import generate_summary
-from .predict import predict_image # Import from the new predict.py
+from .predict import predict_image
+from .scraping_service import scrape_images_for_landmark # New import
+from .landmark_management import get_or_create_landmark # New import
 
 
 class LandmarkPredictionView(APIView):
@@ -65,3 +67,22 @@ class LandmarkListView(APIView):
         landmarks = Landmark.objects.all()
         serializer = LandmarkSerializer(landmarks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ScrapeLandmarkView(APIView):
+    def post(self, request, *args, **kwargs):
+        landmark_name = request.data.get('landmark_name')
+        search_query = request.data.get('search_query', None) # Repurposed from frontend's URL
+
+        if not landmark_name:
+            return Response({'error': 'Landmark name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        landmark_instance = get_or_create_landmark(landmark_name)
+        if not landmark_instance:
+            return Response({'error': f'Could not find or create landmark "{landmark_name}". Please check the name or try again later.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            scraped_count = scrape_images_for_landmark(landmark_instance.name, search_query)
+            return Response({'message': f'Scraped {scraped_count} images for {landmark_name}.', 'scraped_count': scraped_count}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
