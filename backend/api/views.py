@@ -34,19 +34,20 @@ class LandmarkPredictionView(APIView):
             confidence = prediction['confidence']
 
             # Ensure the predicted landmark exists in our database
-            try:
-                predicted_landmark_instance = Landmark.objects.get(name=predicted_landmark_name)
-            except Landmark.DoesNotExist:
-                return Response({'error': f'Predicted landmark "{predicted_landmark_name}" not found in database. Please populate initial landmark data.'}, status=status.HTTP_404_NOT_FOUND)
-
+            # First, try to get the landmark. If not found, use get_or_create_landmark
+            predicted_landmark_instance = Landmark.objects.get(name=predicted_landmark_name)
+            
+            summary = predicted_landmark_instance.summary
+            if not summary:
+                # 4. Get landmark facts and summary
+                facts = get_landmark_facts(predicted_landmark_name)
+                if facts:
+                    summary = generate_summary(predicted_landmark_name, facts)
+                    predicted_landmark_instance.summary = summary
+                    predicted_landmark_instance.save()
+            
             # 3. Calculate distance
             distance_km = distance_to_landmark(predicted_landmark_name)
-
-            # 4. Get landmark facts and summary
-            facts = get_landmark_facts(predicted_landmark_name)
-            summary = None
-            if facts:
-                summary = generate_summary(predicted_landmark_name, facts)
             
             # 5. Save prediction result
             landmark_prediction = LandmarkPrediction.objects.create(

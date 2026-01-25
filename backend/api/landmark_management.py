@@ -6,7 +6,7 @@ from typing import Union # New import for Python 3.9 type hinting
 
 # ---------------- Headers (REQUIRED) ----------------
 HEADERS = {
-    "User-Agent": "location-finder/1.0 (https://github.com/yourname/location-finder)"
+    "User-Agent": "location-finder/1.0 (https://github.com/divyasajjan1/location-finder)"
 }
 
 # ---------------- Wikidata API ----------------
@@ -81,7 +81,7 @@ def _search_wikidata(landmark_name):
             if r.get("label", "").lower() == query:
                 coords = _get_coordinates(r["id"])
                 if coords:
-                    return coords
+                    return {"coords": coords, "wikidata_id": r["id"]}
 
         # 2️⃣ Word containment match
         for r in results:
@@ -89,14 +89,14 @@ def _search_wikidata(landmark_name):
             if query_words.issubset(label_words):
                 coords = _get_coordinates(r["id"])
                 if coords:
-                    return coords
+                    return {"coords": coords, "wikidata_id": r["id"]}
 
         # 3️⃣ Substring fallback
         for r in results:
             if query in r.get("label", "").lower():
                 coords = _get_coordinates(r["id"])
                 if coords:
-                    return coords
+                    return {"coords": coords, "wikidata_id": r["id"]}
 
     except requests.exceptions.RequestException as e:
         print(f"Error searching Wikidata for {landmark_name}: {e}")
@@ -114,20 +114,38 @@ def get_or_create_landmark(standardized_landmark_name: str) -> Union[Landmark, N
     except Landmark.DoesNotExist:
         print(f"Landmark '{standardized_landmark_name}' not found in DB. Attempting to fetch from Wikidata...")
 
-        coords = _search_wikidata(standardized_landmark_name)
+        search_result = _search_wikidata(standardized_landmark_name)
+        coords = None
+        wikidata_id = None
+        if search_result:
+            coords = search_result["coords"]
+            wikidata_id = search_result["wikidata_id"]
 
         if not coords and standardized_landmark_name in ALIASES:
             for alias in ALIASES[standardized_landmark_name]:
                 print(f"Retrying with alias: {alias}")
-                coords = _search_wikidata(alias.replace(" ", "_")) # standardize alias for search
-                if coords:
+                search_result = _search_wikidata(alias.replace(" ", "_")) # standardize alias for search
+                if search_result:
+                    coords = search_result["coords"]
+                    wikidata_id = search_result["wikidata_id"]
                     break
 
         if coords:
+            # Fetch summary using the new utility function
+            summary = None
+            if wikidata_id:
+                from .utils.landmark_facts import get_landmark_facts # Import here to avoid circular dependency
+                facts = get_landmark_facts(standardized_landmark_name) # This uses Wikipedia, not Wikidata
+                if facts:
+                    from .utils.gemini_summary import generate_summary # Import here to avoid circular dependency
+                    summary = generate_summary(standardized_landmark_name, facts)
+
             new_landmark = Landmark.objects.create(
                 name=standardized_landmark_name,
                 latitude=coords["lat"],
-                longitude=coords["lon"]
+                longitude=coords["lon"],
+                summary=summary,
+                wikidata_id=wikidata_id
             )
             print(f"Successfully created new landmark: {new_landmark.name}")
             return new_landmark

@@ -4,6 +4,8 @@ class Landmark(models.Model):
     name = models.CharField(max_length=255, unique=True)
     latitude = models.FloatField()
     longitude = models.FloatField()
+    summary = models.TextField(null=True, blank=True)
+    wikidata_id = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -25,4 +27,3 @@ class LandmarkPrediction(models.Model):
 
     def __str__(self):
         return f"{self.user_location} predicted {self.predicted_landmark.name}"
-
