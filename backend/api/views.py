@@ -11,8 +11,9 @@ from api.utils.gemini_summary import generate_summary
 from .predict import predict_image
 import os
 from django.conf import settings
-from .scraping_service import scrape_images_for_landmark # New import
-from .landmark_management import get_or_create_landmark # New import
+from .scraping_service import scrape_images_for_landmark 
+from .landmark_management import get_or_create_landmark 
+from scripts.training.train_landmarks import train_model
 
 
 class BulkImageUploadView(APIView):
@@ -57,14 +58,26 @@ class BulkImageUploadView(APIView):
                     next_image_idx += 1 # Increment for the next file
                 except Exception as e:
                     return Response({'error': f'Failed to upload {file_obj.name}: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                except Exception as e:
-                    return Response({'error': f'Failed to upload {file_obj.name}: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         if uploaded_count == 0:
             return Response({'error': 'No files uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'message': f'Successfully uploaded {uploaded_count} images for {landmark_name}.', 'uploaded_count': uploaded_count}, status=status.HTTP_200_OK)
 
+
+class TrainModelView(APIView):
+    def post(self, request, *args, **kwargs):
+        landmark_name = request.data.get('landmark_name')
+        if not landmark_name:
+            return Response({'error': 'Landmark name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        # To match the folder names created by your upload/scrape views
+        landmark_name_sanitized = landmark_name.lower().replace(" ", "_")
+        try:
+            # Call the training function
+            training_results = train_model(landmark_name_sanitized)
+            return Response(training_results, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LandmarkPredictionView(APIView):

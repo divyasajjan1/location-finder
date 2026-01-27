@@ -10,7 +10,7 @@ data/raw/
 data/processed/
 
 # Models
-models/*.pth
+models/
 
 # OS
 .DS_Store
