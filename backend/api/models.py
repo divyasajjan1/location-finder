@@ -21,6 +21,7 @@ class UserLocation(models.Model):
 class LandmarkPrediction(models.Model):
     user_location = models.ForeignKey(UserLocation, on_delete=models.CASCADE)
     predicted_landmark = models.ForeignKey(Landmark, on_delete=models.CASCADE)
+    confidence = models.FloatField(null=True, blank=True)
     distance_km = models.FloatField(null=True, blank=True)
     summary = models.TextField(null=True, blank=True)
     prediction_timestamp = models.DateTimeField(auto_now_add=True)

@@ -120,6 +120,7 @@ class LandmarkPredictionView(APIView):
             landmark_prediction = LandmarkPrediction.objects.create(
                 user_location=user_location_instance,
                 predicted_landmark=predicted_landmark_instance,
+                confidence=confidence,
                 distance_km=distance_km,
                 summary=summary
             )
@@ -154,3 +155,26 @@ class ScrapeLandmarkView(APIView):
             return Response({'message': f'Scraped {scraped_count} images for {landmark_name}.', 'scraped_count': scraped_count}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RecalculateTravelView(APIView):
+    def post(self, request):
+        landmark_name = request.data.get('landmark_name')
+        origin_city = request.data.get('origin_city')
+
+        if not landmark_name or not origin_city:
+            return Response({"error": "Missing data"}, status=400)
+
+        try:
+            # Re-use your utility!
+            #landmark_name.lower().replace(" ", "_")
+            metrics = distance_to_landmark(landmark_name.lower().replace(" ", "_"), origin_city=origin_city)
+            
+            return Response({
+                "distance_km": metrics["distance_km"],
+                "estimated_cost": metrics["estimated_cost"]
+            })
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc()) 
+            return Response({"error": str(e)}, status=500)
