@@ -1,10 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Landmark, UserLocation, LandmarkPrediction
-from .serializers import LandmarkSerializer, UserLocationSerializer, LandmarkPredictionSerializer
+from .models import Landmark, LandmarkPrediction, LandmarkImage, TrainingRun, TripPlan, ChatMessage
+from .serializers import LandmarkSerializer, LandmarkPredictionSerializer
 
-from api.utils.user_location import get_user_location
 from api.utils.distance_to_landmark import distance_to_landmark
 from api.utils.landmark_facts import get_landmark_facts
 from api.utils.gemini_summary import generate_summary
@@ -15,7 +14,6 @@ from .scraping_service import scrape_images_for_landmark
 from .landmark_management import get_or_create_landmark 
 from scripts.training.train_landmarks import train_model
 from google import genai
-from .models import ChatMessage
 
 
 class BulkImageUploadView(APIView):
@@ -24,82 +22,117 @@ class BulkImageUploadView(APIView):
         if not landmark_name:
             return Response({'error': 'Landmark name is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # 1. Sanitize and verify the landmark exists in the DB
         landmark_name_sanitized = landmark_name.lower().replace(" ", "_")
+        try:
+            landmark_instance = Landmark.objects.get(name=landmark_name_sanitized)
+        except Landmark.DoesNotExist:
+            return Response({'error': f'Landmark "{landmark_name_sanitized}" not found in database. Please create it first.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Setup Directory
         upload_dir = os.path.join(settings.BASE_DIR.parent, 'data', 'raw', landmark_name_sanitized)
         os.makedirs(upload_dir, exist_ok=True)
 
+        # 3. Determine naming convention (highest number + 1)
         uploaded_count = 0
         existing_files = os.listdir(upload_dir)
-        # Find the highest existing number to determine the next available number
-        # We'll look for numbers in the filename (before the extension)
         highest_num = 0
         for fname in existing_files:
             try:
-                # Remove extension, then try to convert to int
                 name_without_ext = os.path.splitext(fname)[0]
-                if name_without_ext.isdigit(): # Ensure it's purely a number
+                if name_without_ext.isdigit():
                     highest_num = max(highest_num, int(name_without_ext))
             except ValueError:
-                # Ignore files that are not simply numbered
                 pass
         
         next_image_idx = highest_num + 1
 
+        # 4. Process Files
         for key, file_obj in request.FILES.items():
-            if key.startswith('file'): # Handle multiple files with keys like file[0], file[1] etc.
+            if key.startswith('file'):
                 try:
-                    # Construct new filename with numbered convention
+                    # Construct file system path
                     new_filename = f"{next_image_idx}.jpg"
                     file_path = os.path.join(upload_dir, new_filename)
                     
+                    # Save physical file
                     with open(file_path, 'wb+') as destination:
                         for chunk in file_obj.chunks():
                             destination.write(chunk)
+
+                    # 5. Create Database Entry for the image
+                    LandmarkImage.objects.create(
+                        landmark=landmark_instance,
+                        # Saving the relative path for easy access
+                        image=f"data/raw/{landmark_name_sanitized}/{new_filename}",
+                        source='UPLOAD',
+                        user=request.user if request.user.is_authenticated else None
+                    )
+
                     uploaded_count += 1
-                    next_image_idx += 1 # Increment for the next file
+                    next_image_idx += 1 
                 except Exception as e:
                     return Response({'error': f'Failed to upload {file_obj.name}: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         if uploaded_count == 0:
             return Response({'error': 'No files uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({'message': f'Successfully uploaded {uploaded_count} images for {landmark_name}.', 'uploaded_count': uploaded_count}, status=status.HTTP_200_OK)
+        return Response({
+            'message': f'Successfully uploaded {uploaded_count} images for {landmark_name}.', 
+            'uploaded_count': uploaded_count
+        }, status=status.HTTP_200_OK)
 
 
 class TrainModelView(APIView):
     def post(self, request, *args, **kwargs):
         landmark_name = request.data.get('landmark_name')
         if not landmark_name:
-            return Response({'error': 'Landmark name is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        # To match the folder names created by your upload/scrape views
+            return Response({'error': 'Landmark name is required.'}, status=400)
+            
         landmark_name_sanitized = landmark_name.lower().replace(" ", "_")
+        
         try:
-            # Call the training function
             training_results = train_model(landmark_name_sanitized)
-            return Response(training_results, status=status.HTTP_200_OK)
+            
+            # NEW: Log the training run in the DB
+            TrainingRun.objects.create(
+                model_name=landmark_name_sanitized,
+                epochs=training_results.get('epochs', 5), 
+                accuracy=training_results.get('accuracy', 0.0),
+                loss=training_results.get('loss', 0.0),
+                status='success'
+            )
+            
+            return Response(training_results, status=200)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Log failed attempt
+            TrainingRun.objects.create(model_name=landmark_name_sanitized, epochs=0, accuracy=0, status='failed')
+            return Response({'error': str(e)}, status=500)
 
 
 class LandmarkPredictionView(APIView):
     def post(self, request):
         image_file = request.FILES.get('file')
-        if not image_file:
-            return Response({'error': 'No image'}, status=400)
+        if not image_file: return Response({'error': 'No image'}, status=400)
 
         try:
-            # Predict name and confidence
             prediction = predict_image(image_file.read())
             name = prediction['label']
-            
-            # Fetch the pre-existing landmark data from your DB
             landmark = Landmark.objects.get(name=name)
             
-            # Generate summary if missing
             if not landmark.summary:
                 facts = get_landmark_facts(name)
                 landmark.summary = generate_summary(name, facts)
                 landmark.save()
+
+            # NEW: Save the "Prediction Report"
+            # This stores the history for the user
+            LandmarkPrediction.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                predicted_landmark=landmark,
+                confidence=prediction['confidence'],
+                summary_at_prediction=landmark.summary
+            )
 
             return Response({
                 'id': landmark.id,
@@ -120,21 +153,42 @@ class LandmarkListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+from django.db import transaction # Add this import at the top
+
 class ScrapeLandmarkView(APIView):
     def post(self, request, *args, **kwargs):
         landmark_name = request.data.get('landmark_name')
-        search_query = request.data.get('search_query', None) # Repurposed from frontend's URL
+        search_query = request.data.get('search_query', None)
 
         if not landmark_name:
             return Response({'error': 'Landmark name is required.'}, status=status.HTTP_400_BAD_REQUEST)
         
         landmark_instance = get_or_create_landmark(landmark_name)
         if not landmark_instance:
-            return Response({'error': f'Could not find or create landmark "{landmark_name}". Please check the name or try again later.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': f'Could not find or create landmark "{landmark_name}".'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            scraped_count = scrape_images_for_landmark(landmark_instance.name, search_query)
-            return Response({'message': f'Scraped {scraped_count} images for {landmark_name}.', 'scraped_count': scraped_count}, status=status.HTTP_200_OK)
+            # The service now returns the list of filenames as intended
+            scraped_filenames = scrape_images_for_landmark(landmark_instance.name, search_query)
+            
+            # Use bulk_create for much faster database insertion
+            image_objects = [
+                LandmarkImage(
+                    landmark=landmark_instance,
+                    image=f"data/raw/{landmark_instance.name}/{fname}",
+                    source='SCRAPED',
+                    user=request.user if request.user.is_authenticated else None
+                ) for fname in scraped_filenames
+            ]
+            
+            with transaction.atomic():
+                LandmarkImage.objects.bulk_create(image_objects)
+
+            return Response({
+                'message': f'Scraped {len(scraped_filenames)} images for {landmark_name}.', 
+                'scraped_count': len(scraped_filenames)
+            }, status=status.HTTP_200_OK)
+
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
