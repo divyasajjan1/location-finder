@@ -21,8 +21,8 @@ def calculate_travel_cost(distance_km):
     if distance_km < 100:
         return 50  # Minimum flat rate for very close travel
     
-    # $0.12 per km is the base
-    cost_per_km = 0.12
+    # $0.15 per km is the base
+    cost_per_km = 0.15
     estimated_cost = distance_km * cost_per_km
     
     # Add a small fixed "booking & tax" fee of $45

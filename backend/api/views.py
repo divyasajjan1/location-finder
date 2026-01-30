@@ -31,7 +31,6 @@ class BulkImageUploadView(APIView):
         uploaded_count = 0
         existing_files = os.listdir(upload_dir)
         # Find the highest existing number to determine the next available number
-        # This handles cases where files might be named like '1.jpg', 'image_2.png', etc.
         # We'll look for numbers in the filename (before the extension)
         highest_num = 0
         for fname in existing_files:
@@ -83,55 +82,36 @@ class TrainModelView(APIView):
 
 
 class LandmarkPredictionView(APIView):
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         image_file = request.FILES.get('file')
-
         if not image_file:
-            return Response({'error': 'No image file provided'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'No image'}, status=400)
 
         try:
-            # 1. Get user location
-            user_lat, user_lon = get_user_location()
-            if user_lat is None or user_lon is None:
-                return Response({'error': 'Could not determine user location'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            user_location_instance = UserLocation.objects.create(latitude=user_lat, longitude=user_lon)
-
-            # 2. Predict landmark from image
+            # Predict name and confidence
             prediction = predict_image(image_file.read())
-            predicted_landmark_name = prediction['label']
-            confidence = prediction['confidence']
-
-            # Ensure the predicted landmark exists in our database
-            # First, try to get the landmark. If not found, use get_or_create_landmark
-            predicted_landmark_instance = Landmark.objects.get(name=predicted_landmark_name)
+            name = prediction['label']
             
-            summary = predicted_landmark_instance.summary
-            if not summary:
-                # 4. Get landmark facts and summary
-                facts = get_landmark_facts(predicted_landmark_name)
-                if facts:
-                    summary = generate_summary(predicted_landmark_name, facts)
-                    predicted_landmark_instance.summary = summary
-                    predicted_landmark_instance.save()
+            # Fetch the pre-existing landmark data from your DB
+            landmark = Landmark.objects.get(name=name)
             
-            # 3. Calculate distance
-            distance_km = distance_to_landmark(predicted_landmark_name)
-            
-            # 5. Save prediction result
-            landmark_prediction = LandmarkPrediction.objects.create(
-                user_location=user_location_instance,
-                predicted_landmark=predicted_landmark_instance,
-                confidence=confidence,
-                distance_km=distance_km,
-                summary=summary
-            )
+            # Generate summary if missing
+            if not landmark.summary:
+                facts = get_landmark_facts(name)
+                landmark.summary = generate_summary(name, facts)
+                landmark.save()
 
-            serializer = LandmarkPredictionSerializer(landmark_prediction)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response({
+                'id': landmark.id,
+                'name': landmark.name,
+                'latitude': landmark.latitude,
+                'longitude': landmark.longitude,
+                'summary': landmark.summary,
+                'confidence': prediction['confidence']
+            }, status=200)
 
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Landmark.DoesNotExist:
+            return Response({'error': 'Landmark not in database'}, status=404)
 
 class LandmarkListView(APIView):
     def get(self, request, *args, **kwargs):
@@ -159,7 +139,7 @@ class ScrapeLandmarkView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class RecalculateTravelView(APIView):
+class DistanceCalculatorView(APIView):
     def post(self, request):
         landmark_name = request.data.get('landmark_name')
         origin_city = request.data.get('origin_city')
@@ -168,18 +148,18 @@ class RecalculateTravelView(APIView):
             return Response({"error": "Missing data"}, status=400)
 
         try:
-            # Re-use your utility!
-            #landmark_name.lower().replace(" ", "_")
-            metrics = distance_to_landmark(landmark_name.lower().replace(" ", "_"), origin_city=origin_city)
+            formatted_name = landmark_name.lower().replace(" ", "_") 
+            landmark = Landmark.objects.get(name=formatted_name)
+            metrics = distance_to_landmark(landmark, origin_city=origin_city)
             
             return Response({
                 "distance_km": metrics["distance_km"],
                 "estimated_cost": metrics["estimated_cost"]
             })
+        except Landmark.DoesNotExist:
+            return Response({'error': f"Landmark '{landmark_name}' not found in database."}, status=404)
         except Exception as e:
-            import traceback
-            print(traceback.format_exc()) 
-            return Response({"error": str(e)}, status=500)
+            return Response({'error': str(e)}, status=500)
 
 # Configure your Gemini API Key here
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
