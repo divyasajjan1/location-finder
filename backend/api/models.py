@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class Landmark(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -28,3 +29,12 @@ class LandmarkPrediction(models.Model):
 
     def __str__(self):
         return f"{self.user_location} predicted {self.predicted_landmark.name}"
+    
+class ChatMessage(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    question = models.TextField()
+    answer = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Chat by {self.user.username if self.user else 'Guest'} at {self.timestamp}"

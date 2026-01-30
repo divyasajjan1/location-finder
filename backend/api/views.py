@@ -14,6 +14,8 @@ from django.conf import settings
 from .scraping_service import scrape_images_for_landmark 
 from .landmark_management import get_or_create_landmark 
 from scripts.training.train_landmarks import train_model
+from google import genai
+from .models import ChatMessage
 
 
 class BulkImageUploadView(APIView):
@@ -177,4 +179,44 @@ class RecalculateTravelView(APIView):
         except Exception as e:
             import traceback
             print(traceback.format_exc()) 
+            return Response({"error": str(e)}, status=500)
+
+# Configure your Gemini API Key here
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+class LandmarkChatView(APIView):
+    def post(self, request):
+        user_query = request.data.get('message')
+        
+        if not user_query:
+            return Response({"error": "Message is required"}, status=400)
+
+        # Your strict travel-only rules
+        system_instruction = (
+            "You are a specialized travel assistant for this Landmark App. "
+            "1. Only answer questions about planning trips, landmarks, and travel features. "
+            "2. If the user asks about politics, sports, coding, or random topics, politely say: "
+            "'I'm specialized in landmark travel planning. Let's get back to your trip!'. "
+            "3. Keep responses concise."
+        )
+
+        try:
+            # Using the v1 Client syntax
+            response = client.models.generate_content(
+                model="gemini-2.5-flash", 
+                contents=f"{system_instruction}\n\nUser Question: {user_query}"
+            )
+            
+            bot_answer = response.text.strip()
+
+            # Store in PostgreSQL ChatMessage model
+            ChatMessage.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                question=user_query,
+                answer=bot_answer
+            )
+
+            return Response({"answer": bot_answer})
+
+        except Exception as e:
             return Response({"error": str(e)}, status=500)
