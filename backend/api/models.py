@@ -38,6 +38,7 @@ class LandmarkPrediction(models.Model):
 # 4. TRAINING LOGS (Admin only feature)
 class TrainingRun(models.Model):
     model_name = models.CharField(max_length=100)
+    image_count = models.IntegerField(null=True, blank=True)
     epochs = models.IntegerField()
     accuracy = models.FloatField(null=True, blank=True)
     loss = models.FloatField(null=True, blank=True)

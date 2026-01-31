@@ -25,7 +25,7 @@ class TrainingRunSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrainingRun
         fields = [
-            'id', 'model_name', 'epochs', 'accuracy', 
+            'id', 'model_name', 'image_count', 'epochs', 'accuracy', 
             'loss', 'status', 'started_at', 'finished_at'
         ]
 

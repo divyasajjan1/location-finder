@@ -1,8 +1,9 @@
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Landmark, LandmarkPrediction, LandmarkImage, TrainingRun, TripPlan, ChatMessage
-from .serializers import LandmarkSerializer, LandmarkPredictionSerializer
+from .serializers import LandmarkSerializer, LandmarkPredictionSerializer, TrainingRunSerializer
 
 from api.utils.distance_to_landmark import distance_to_landmark
 from api.utils.landmark_facts import get_landmark_facts
@@ -84,32 +85,47 @@ class BulkImageUploadView(APIView):
 
 
 class TrainModelView(APIView):
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         landmark_name = request.data.get('landmark_name')
-        if not landmark_name:
-            return Response({'error': 'Landmark name is required.'}, status=400)
-            
-        landmark_name_sanitized = landmark_name.lower().replace(" ", "_")
         
+        # 1. Create the run log entry first
+        run_log = TrainingRun.objects.create(
+            model_name=f"{landmark_name}",
+            epochs=5,
+            status='processing'
+        )
+
         try:
-            training_results = train_model(landmark_name_sanitized)
-            
-            # NEW: Log the training run in the DB
-            TrainingRun.objects.create(
-                model_name=landmark_name_sanitized,
-                epochs=training_results.get('epochs', 5), 
-                accuracy=training_results.get('accuracy', 0.0),
-                loss=training_results.get('loss', 0.0),
-                status='success'
-            )
-            
-            return Response(training_results, status=200)
+            # 2. Start the training process
+            results = train_model(landmark_name)
+
+            if results.get('status') == 'Complete':
+                # 3. Explicitly save stats to the database
+                run_log.accuracy = results.get('final_accuracy')
+                run_log.loss = results.get('final_loss')
+                run_log.image_count = results.get('total_images_processed')
+                run_log.status = 'success'
+                run_log.finished_at = timezone.now()
+                run_log.save()
+                
+                return Response(results, status=status.HTTP_200_OK)
+            else:
+                run_log.status = 'failed'
+                run_log.save()
+                return Response({'error': results.get('message')}, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            # Log failed attempt
-            TrainingRun.objects.create(model_name=landmark_name_sanitized, epochs=0, accuracy=0, status='failed')
-            return Response({'error': str(e)}, status=500)
+            run_log.status = 'failed'
+            run_log.save()
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+class TrainingHistoryView(APIView):
+    def get(self, request):
+        # Returns the 5 most recent training runs
+        runs = TrainingRun.objects.all().order_by('-started_at')[:5]
+        serializer = TrainingRunSerializer(runs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
 class LandmarkPredictionView(APIView):
     def post(self, request):
         image_file = request.FILES.get('file')
