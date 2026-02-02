@@ -237,11 +237,11 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 class LandmarkChatView(APIView):
     def post(self, request):
         user_query = request.data.get('message')
+        history_data = request.data.get('history', [])
         
         if not user_query:
             return Response({"error": "Message is required"}, status=400)
 
-        # Your strict travel-only rules
         system_instruction = (
             "You are a specialized travel assistant for this Landmark App. "
             "1. Only answer questions about planning trips, landmarks, and travel features. "
@@ -251,15 +251,30 @@ class LandmarkChatView(APIView):
         )
 
         try:
-            # Using the v1 Client syntax
-            response = client.models.generate_content(
-                model="gemini-2.5-flash", 
-                contents=f"{system_instruction}\n\nUser Question: {user_query}"
+            # 1. Format history for the Chat Session
+            # Gemini expects 'user' and 'model'
+            history_for_gemini = []
+            # We skip the very first intro message and the last message (which is the current query)
+            for msg in history_data[:-1]: 
+                if msg['text'] == "Hi! I'm your Landmark Assistant. Ask me anything about your trip!":
+                    continue
+                role = "user" if msg['sender'] == 'user' else "model"
+                history_for_gemini.append({"role": role, "parts": [{"text": msg['text']}]})
+
+            # 2. Start a chat session with the history
+            chat = client.chats.create(
+                model="gemini-2.5-flash",
+                config={
+                    "system_instruction": system_instruction,
+                },
+                history=history_for_gemini
             )
-            
+
+            # 3. Send the current message
+            response = chat.send_message(user_query)
             bot_answer = response.text.strip()
 
-            # Store in PostgreSQL ChatMessage model
+            # Store in DB
             ChatMessage.objects.create(
                 user=request.user if request.user.is_authenticated else None,
                 question=user_query,
@@ -269,4 +284,5 @@ class LandmarkChatView(APIView):
             return Response({"answer": bot_answer})
 
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            print(f"Gemini Error: {e}")
+            return Response({"error": "I'm having trouble thinking right now."}, status=500)
