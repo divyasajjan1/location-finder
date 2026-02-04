@@ -36,12 +36,9 @@ jobs:
         with:
           name: python-app
           path: |
-            manage.py
+            backend/
             requirements.txt
-            */  # your Django project folder(s)
-            !antenv/
-            !**/__pycache__/
-            !**/node_modules/
+
 
   deploy:
     runs-on: ubuntu-latest
@@ -69,3 +66,4 @@ jobs:
           app-name: 'location-finder'
           slot-name: 'Production'
           package: .
+
