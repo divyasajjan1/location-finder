@@ -53,28 +53,30 @@ jobs:
     permissions:
       id-token: write
       contents: read
-
+  
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: python-app
-
-      - name: Debug workspace
-        run: ls -R .
-
+  
+      - name: Create ZIP package
+        run: |
+          zip -r app.zip .
+  
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_9956D8C8A3CB4DEF8065670272BDCAA8 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_555C3C5154324CA49C499A57FE95F1F9 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_659AF4E8C80047F29EB5D035D7BEBBEC }}
-
+  
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'location-finder'
           slot-name: 'Production'
-          package: .
+          package: app.zip
+
 
 
