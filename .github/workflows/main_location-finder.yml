@@ -39,8 +39,11 @@ jobs:
             backend/manage.py
             backend/backend/
             backend/api/
-            requirements.txt
+            backend/data/
+            backend/models/
+            backend/scripts/
             backend/*.py
+            requirements.txt
           if-no-files-found: error
 
   deploy:
@@ -55,6 +58,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-app
+
+      - name: Flatten artifact structure
+        run: |
+          shopt -s dotglob
+          mv python-app/* .
+          rm -rf python-app
 
       - name: Login to Azure
         uses: azure/login@v2
