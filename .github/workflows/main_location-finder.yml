@@ -37,10 +37,9 @@ jobs:
           cp backend/manage.py deploy/
           cp -r backend/backend deploy/backend
           cp -r backend/api deploy/api
-          cp -r data deploy/data
-          cp -r models deploy/models
-          cp -r scripts deploy/scripts
+          cp backend/*.py deploy/
           cp requirements.txt deploy/
+
 
       - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
@@ -77,4 +76,5 @@ jobs:
           app-name: 'location-finder'
           slot-name: 'Production'
           package: .
+
 
