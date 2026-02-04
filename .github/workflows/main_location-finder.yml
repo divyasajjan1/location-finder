@@ -23,22 +23,25 @@ jobs:
       - name: Upgrade pip tools
         run: python -m pip install --upgrade pip setuptools wheel
 
-      # Install dependencies (local build check)
-      - name: Install dependencies
+      - name: Install dependencies (local check)
         run: |
           python -m venv antenv
           source antenv/bin/activate
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
 
-      # Upload only necessary backend files
+      # Upload ONLY the contents of backend/ so manage.py is at the root of the ZIP
       - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:
           name: python-app
           path: |
-            backend/
-            requirements.txt
-
+            backend/manage.py
+            backend/backend/
+            backend/api/
+            backend/requirements.txt
+            backend/*.py
+          # Exclusions
+          if-no-files-found: error
 
   deploy:
     runs-on: ubuntu-latest
@@ -66,4 +69,3 @@ jobs:
           app-name: 'location-finder'
           slot-name: 'Production'
           package: .
-
