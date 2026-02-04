@@ -30,21 +30,23 @@ jobs:
           source antenv/bin/activate
           pip install -r requirements.txt
 
-      # Upload ONLY the contents of backend/ so manage.py is at the root of the ZIP
+      # Build a clean deploy folder with the correct structure
+      - name: Prepare deployment folder
+        run: |
+          mkdir deploy
+          cp backend/manage.py deploy/
+          cp -r backend/backend deploy/backend
+          cp -r backend/api deploy/api
+          cp -r backend/data deploy/data
+          cp -r backend/models deploy/models
+          cp -r backend/scripts deploy/scripts
+          cp requirements.txt deploy/
+
       - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            backend/manage.py
-            backend/backend/
-            backend/api/
-            backend/data/
-            backend/models/
-            backend/scripts/
-            backend/*.py
-            requirements.txt
-          if-no-files-found: error
+          path: deploy
 
   deploy:
     runs-on: ubuntu-latest
@@ -52,23 +54,23 @@ jobs:
     permissions:
       id-token: write
       contents: read
-  
+
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: python-app
-  
+
       - name: Debug workspace
         run: ls -R .
-  
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_9956D8C8A3CB4DEF8065670272BDCAA8 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_555C3C5154324CA49C499A57FE95F1F9 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_659AF4E8C80047F29EB5D035D7BEBBEC }}
-  
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
