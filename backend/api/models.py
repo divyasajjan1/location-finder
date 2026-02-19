@@ -17,7 +17,7 @@ class LandmarkImage(models.Model):
     SOURCE_CHOICES = [('UPLOAD', 'Upload'), ('SCRAPED', 'Scraped')]
     
     landmark = models.ForeignKey(Landmark, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='landmark_images/') # Actual file storage
+    image = models.CharField(max_length=500)
     source = models.CharField(max_length=10, choices=SOURCE_CHOICES)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
