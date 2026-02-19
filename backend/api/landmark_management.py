@@ -1,6 +1,4 @@
 import requests
-import json
-import os
 from .models import Landmark
 from typing import Union # New import for Python 3.9 type hinting
 

@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import Landmark, LandmarkPrediction, LandmarkImage, TrainingRun, TripPlan, ChatMessage
+from .models import Landmark, LandmarkPrediction, LandmarkImage, TrainingRun, ChatMessage
 
 # 1. LANDMARK SERIALIZER
 class LandmarkSerializer(serializers.ModelSerializer):
@@ -27,18 +26,6 @@ class TrainingRunSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'model_name', 'image_count', 'epochs', 'accuracy', 
             'loss', 'status', 'started_at', 'finished_at'
-        ]
-
-# 4. TRIP PLAN SERIALIZER (The Tourist Feature)
-class TripPlanSerializer(serializers.ModelSerializer):
-    # Includes the landmark details so the UI can show the destination name
-    landmark_details = LandmarkSerializer(source='landmark', read_only=True)
-
-    class Meta:
-        model = TripPlan
-        fields = [
-            'id', 'user', 'landmark', 'landmark_details', 
-            'start_date', 'end_date', 'estimated_cost', 'notes', 'created_at'
         ]
 
 # 5. CHAT MESSAGE SERIALIZER

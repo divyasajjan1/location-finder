@@ -27,7 +27,6 @@ class LandmarkPrediction(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     predicted_landmark = models.ForeignKey(Landmark, on_delete=models.CASCADE)
     confidence = models.FloatField(null=True, blank=True)
-    distance_km = models.FloatField(null=True, blank=True)
     # Storing the summary at the time of prediction ensures history stays even if Landmark changes
     summary_at_prediction = models.TextField(null=True, blank=True) 
     prediction_timestamp = models.DateTimeField(auto_now_add=True)
@@ -46,17 +45,7 @@ class TrainingRun(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 
-# 5. TRIP PLANS (The "Tourist" feature)
-class TripPlan(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    landmark = models.ForeignKey(Landmark, on_delete=models.CASCADE)
-    start_date = models.DateField()
-    end_date = models.DateField()
-    estimated_cost = models.FloatField()
-    notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-# 6. CHAT (AI Interaction history)
+# 5. CHAT (AI Interaction history)
 class ChatMessage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     question = models.TextField()

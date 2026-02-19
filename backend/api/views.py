@@ -2,8 +2,8 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Landmark, LandmarkPrediction, LandmarkImage, TrainingRun, TripPlan, ChatMessage
-from .serializers import LandmarkSerializer, LandmarkPredictionSerializer, TrainingRunSerializer
+from .models import Landmark, LandmarkPrediction, LandmarkImage, TrainingRun, ChatMessage
+from .serializers import LandmarkSerializer, TrainingRunSerializer
 
 from api.utils.distance_to_landmark import distance_to_landmark
 from api.utils.landmark_facts import get_landmark_facts
@@ -13,8 +13,9 @@ import os
 from django.conf import settings
 from .scraping_service import scrape_images_for_landmark 
 from .landmark_management import get_or_create_landmark 
-from scripts.training.train_landmarks import train_model
+from .train_landmarks import train_model
 from google import genai
+from django.db import transaction
 
 
 class BulkImageUploadView(APIView):
@@ -141,7 +142,7 @@ class LandmarkPredictionView(APIView):
                 landmark.summary = generate_summary(name, facts)
                 landmark.save()
 
-            # NEW: Save the "Prediction Report"
+            # Save the "Prediction Report"
             # This stores the history for the user
             LandmarkPrediction.objects.create(
                 user=request.user if request.user.is_authenticated else None,
@@ -166,10 +167,7 @@ class LandmarkListView(APIView):
     def get(self, request, *args, **kwargs):
         landmarks = Landmark.objects.all()
         serializer = LandmarkSerializer(landmarks, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-from django.db import transaction # Add this import at the top
+        return Response(serializer.data, status=status.HTTP_200_OK) 
 
 class ScrapeLandmarkView(APIView):
     def post(self, request, *args, **kwargs):
