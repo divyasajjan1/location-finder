@@ -29,5 +29,7 @@ def distance_to_landmark(landmark_instance, origin_city=None):
     # This matches the metrics["distance_km"] and metrics["estimated_cost"] logic in views.py
     return {
         "distance_km": round(distance_km, 2),
-        "estimated_cost": cost
+        "estimated_cost": cost,
+        "origin_lat": user_lat,
+        "origin_lon": user_lon,
     }

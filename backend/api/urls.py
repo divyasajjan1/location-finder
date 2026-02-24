@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import LandmarkPredictionView, DistanceCalculatorView, LandmarkListView, ScrapeLandmarkView, BulkImageUploadView, TrainModelView, TrainingHistoryView, LandmarkChatView
+from .views import LandmarkPredictionView, DistanceCalculatorView, LandmarkListView, ScrapeLandmarkView, BulkImageUploadView, TrainModelView, TrainingHistoryView, LandmarkChatView, FlightDealsView
 
 urlpatterns = [
     path('predict/', LandmarkPredictionView.as_view(), name='predict_landmark'),
@@ -10,4 +10,5 @@ urlpatterns = [
     path('train/', TrainModelView.as_view(), name='train_model'),
     path('training-history/', TrainingHistoryView.as_view(), name='training_history'),
     path('chat/', LandmarkChatView.as_view(), name='landmark_chat'),  
+    path('flight-deals/', FlightDealsView.as_view(), name='flight_deals'),
 ]

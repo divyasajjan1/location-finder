@@ -41,3 +41,12 @@ class LandmarkImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = LandmarkImage
         fields = ['id', 'landmark', 'image', 'source', 'user', 'created_at']
+
+#7. FLIGHT DEAL SERIALIZER (For structuring flight deal responses)
+from rest_framework import serializers
+
+class FlightDealSerializer(serializers.Serializer):
+    type = serializers.CharField()      # "Cheapest" or "Fastest"
+    site = serializers.CharField()      # e.g., "SkyScanner"
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    currency = serializers.CharField()

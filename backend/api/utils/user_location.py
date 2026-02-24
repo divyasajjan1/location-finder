@@ -27,6 +27,7 @@ def get_user_location(city_name=None):
         response = requests.get(url, headers=headers).json()
         
         if response:
+            print(f"DEBUG Nominatim: '{city_name}' → {response[0]['lat']}, {response[0]['lon']} ({response[0]['display_name']})")
             return float(response[0]['lat']), float(response[0]['lon'])
     except Exception as e:
         print(f"Geocoding error: {e}")

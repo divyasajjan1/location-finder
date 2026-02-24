@@ -11,9 +11,11 @@ For the full list of settings and their values, see
 """
 
 from pathlib import Path
+import environ
 import os
 import sys
 
+env = environ.Env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,6 +23,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BASE_DIR.parent
 sys.path.append(str(PROJECT_ROOT))
 
+
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+AMADEUS_API_KEY = env('AMADEUS_API_KEY')
+AMADEUS_API_SECRET = env('AMADEUS_API_SECRET')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/

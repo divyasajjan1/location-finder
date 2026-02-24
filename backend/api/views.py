@@ -14,6 +14,7 @@ from django.conf import settings
 from .scraping_service import scrape_images_for_landmark 
 from .landmark_management import get_or_create_landmark 
 from .train_landmarks import train_model
+from .flight_service import get_flight_deals
 from google import genai
 from django.db import transaction
 
@@ -219,11 +220,16 @@ class DistanceCalculatorView(APIView):
             formatted_name = landmark_name.lower().replace(" ", "_") 
             landmark = Landmark.objects.get(name=formatted_name)
             metrics = distance_to_landmark(landmark, origin_city=origin_city)
-            
+            print(f"DEBUG VIEW: origin_lat={metrics['origin_lat']}, origin_lon={metrics['origin_lon']}")
             return Response({
                 "distance_km": metrics["distance_km"],
-                "estimated_cost": metrics["estimated_cost"]
+                "estimated_cost": metrics["estimated_cost"],
+                "lat": landmark.latitude,
+                "lon": landmark.longitude,
+                "origin_lat": metrics["origin_lat"],
+                "origin_lon": metrics["origin_lon"],  
             })
+            
         except Landmark.DoesNotExist:
             return Response({'error': f"Landmark '{landmark_name}' not found in database."}, status=404)
         except Exception as e:
@@ -284,3 +290,23 @@ class LandmarkChatView(APIView):
         except Exception as e:
             print(f"Gemini Error: {e}")
             return Response({"error": "I'm having trouble thinking right now."}, status=500)
+        
+class FlightDealsView(APIView):
+    def post(self, request):
+        # 1. Get data from the React frontend
+        destination_name = request.data.get('destination')
+        origin = request.data.get('origin', 'LON')
+        lat = request.data.get('lat')
+        lon = request.data.get('lon')
+        origin_lat = request.data.get('origin_lat')
+        origin_lon = request.data.get('origin_lon')
+
+        # 2. Validation
+        if not destination_name and not lat:
+            return Response({"error": "Destination name or coordinates are required"}, status=400)
+
+        # 3. Call the service (we will update the service to handle both)
+        # If we have lat/lng, we use them for pinpoint accuracy
+        deals = get_flight_deals(destination_name, origin, lat, lon, origin_lat, origin_lon)
+        
+        return Response(deals)
