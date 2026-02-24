@@ -144,12 +144,18 @@ def get_flight_deals(destination_name, origin_input, lat=None, lon=None, origin_
         fastest = min(response.data, key=_total_duration)
 
         def build_deal(label, offer):
+            depart_code = offer['itineraries'][0]['segments'][0]['departure']['iataCode']
+            arrive_code = offer['itineraries'][-1]['segments'][-1]['arrival']['iataCode']
+            booking_url = f"https://www.google.com/travel/flights?q=flights+from+{depart_code}+to+{arrive_code}+on+{depart_date}"
             return {
                 "type": label,
                 "site": _airline_name(offer, carriers),
                 "price": offer['price']['total'],
                 "currency": offer['price']['currency'],
                 "duration_minutes": _total_duration(offer),
+                "booking_url": booking_url,
+                "from_airport": depart_code,
+                "to_airport": arrive_code, 
             }
 
         return [
